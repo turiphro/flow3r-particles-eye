@@ -1,5 +1,6 @@
 from st3m.reactor import Responder
 import st3m.run
+from st3m.application import Application, ApplicationContext
 
 import random
 import math
@@ -11,11 +12,14 @@ CENTER = [0, 0]
 CIRCLE_CENTER_R = 25
 CIRCLE_RING_R = 90
 CIRCLE_RING_WIDTH = 6
+TOUCH_DISTANCE = SCREEN_SIZE[0] / 2
 
 PARTICLE_SIZE = 2
-NUM_PARTICLES_INNER = 100
+NUM_PARTICLES_INNER = 50
 NUM_PARTICLES_OUTER = 150
-DAMPING = 0.9
+DAMPING = 0.8
+ENTROPY_BASE = 5
+ENTROPY_TOUCH = 10
 
 
 class Vector:
@@ -45,7 +49,7 @@ class Vector:
             return Vector(self.x / other.x, self.y / other.y)
 
     def distance_to(self, other: Vector):
-        return math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
+        return ((self.x - other.x)**2 + (self.y - other.y)**2) ** 0.5
 
     def __str__(self):
         return f"({self.x}, {self.y})"
@@ -79,6 +83,17 @@ def force_to_outline(position: Vector) -> Vector:
         return center
 
 
+def force_to_mass(mass: Vector):
+    """Gravity-like force (stronger if closer) towards a mass"""
+    def force_fn(position: Vector) -> Vector:
+        difference = mass - position
+        distance = mass.distance_to(position)
+        force = difference / (distance) * screen_size * 0.1
+        return force
+
+    return force_fn
+
+
 class Particle:
     def __init__(self, force_fn):
         self.position = Vector(
@@ -86,7 +101,7 @@ class Particle:
             float(random.randint(TOPLEFT[1], TOPLEFT[0] + SCREEN_SIZE[1]))
         )
         self.colour = [255, 0, 0]
-        self.entropy = 5
+        self.entropy = ENTROPY_BASE
         self.speed = Vector(0, 0)
         self.force_fn = force_fn
 
@@ -99,8 +114,11 @@ class Particle:
             PARTICLE_SIZE // 2
         ).fill()
 
-    def move(self, delta_ms: int) -> None:
+    def move(self, delta_ms: int, additional_forces: None) -> None:
         force = self.force_fn(self.position)
+        if additional_forces:
+            for add_force_fn in additional_forces:
+                force += add_force_fn(self.position)
         wiggle = Vector(random.uniform(-1, 1), random.uniform(-1, 1))
         self.speed = self.speed * DAMPING + (force + self.entropy * wiggle) * (1 - DAMPING)
 
@@ -108,8 +126,10 @@ class Particle:
 
 
 
-class ParticleEye(Responder):
-    def __init__(self) -> None:
+class ParticleEye(Application):
+    def __init__(self, app_ctx: ApplicationContext) -> None:
+        super().__init__(app_ctx)
+
         self.particles = []
         for _ in range(NUM_PARTICLES_INNER):
             self.particles.append(Particle(force_fn=force_to_pupil))
@@ -125,10 +145,22 @@ class ParticleEye(Responder):
             particle.draw(ctx)
 
     def think(self, ins: InputState, delta_ms: int) -> None:
+        super().think(ins, delta_ms)
+
+        additional_forces = []
+        for index, petal in enumerate(self.input.captouch.petals):
+            if petal.whole.pressed or petal.whole.repeated:
+                angle = 2 * math.pi * index / 10 - math.pi / 2
+                additional_forces.append(force_to_mass(Vector(
+                    TOUCH_DISTANCE * math.cos(angle),
+                    TOUCH_DISTANCE * math.sin(angle),
+                )))
+
         for particle in self.particles:
-            particle.move(delta_ms)
+            particle.entropy = ENTROPY_TOUCH if additional_forces else ENTROPY_BASE
+            particle.move(delta_ms, additional_forces)
 
 
 if __name__ == '__main__':  # debugging purposes
-    st3m.run.run_responder(ParticleEye())
+    st3m.run.run_view(ParticleEye(ApplicationContext()))
 
