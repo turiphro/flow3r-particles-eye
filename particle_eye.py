@@ -8,12 +8,14 @@ import math
 SCREEN_SIZE = [240, 240]
 TOPLEFT = [-dim // 2 for dim in SCREEN_SIZE]
 CENTER = [0, 0]
-CIRCLE_CENTER_R = 30
-CIRCLE_RING_R = 80
+CIRCLE_CENTER_R = 25
+CIRCLE_RING_R = 90
+CIRCLE_RING_WIDTH = 6
 
 PARTICLE_SIZE = 2
-NUM_PARTICLES = 250
-DAMPING = 0.8
+NUM_PARTICLES_INNER = 100
+NUM_PARTICLES_OUTER = 150
+DAMPING = 0.9
 
 
 class Vector:
@@ -49,19 +51,36 @@ class Vector:
         return f"({self.x}, {self.y})"
 
 
-def force_to_circle(position: Vector) -> Vector:
-    center = Vector(*CENTER)
+center = Vector(*CENTER)
+screen_size = Vector(*SCREEN_SIZE)
+
+
+def force_to_pupil(position: Vector) -> Vector:
+    """Move towards a filled circle (no force when within)"""
     difference = center - position
     distance = center.distance_to(position)
     
     if distance > CIRCLE_CENTER_R:
-        return difference * (distance - CIRCLE_CENTER_R) / Vector(*SCREEN_SIZE)
+        return difference * (distance - CIRCLE_CENTER_R) / screen_size
     else:
-        return Vector(0, 0)
+        return center
+
+
+def force_to_outline(position: Vector) -> Vector:
+    """Move towards the contour of a circle"""
+    difference = center - position
+    distance = center.distance_to(position)
+    
+    if distance > CIRCLE_RING_R + CIRCLE_RING_WIDTH:  # move inwards
+        return difference * (distance - CIRCLE_RING_R - CIRCLE_RING_WIDTH) / screen_size
+    elif distance < CIRCLE_RING_R - CIRCLE_RING_WIDTH:  # move outwards
+        return difference * (distance - CIRCLE_RING_R + CIRCLE_RING_WIDTH) / screen_size
+    else:
+        return center
 
 
 class Particle:
-    def __init__(self, force_fn=force_to_circle):
+    def __init__(self, force_fn):
         self.position = Vector(
             float(random.randint(TOPLEFT[0], TOPLEFT[0] + SCREEN_SIZE[0])),
             float(random.randint(TOPLEFT[1], TOPLEFT[0] + SCREEN_SIZE[1]))
@@ -91,7 +110,11 @@ class Particle:
 
 class ParticleEye(Responder):
     def __init__(self) -> None:
-        self.particles = [Particle() for _ in range(NUM_PARTICLES)]
+        self.particles = []
+        for _ in range(NUM_PARTICLES_INNER):
+            self.particles.append(Particle(force_fn=force_to_pupil))
+        for _ in range(NUM_PARTICLES_OUTER):
+            self.particles.append(Particle(force_fn=force_to_outline))
 
     def draw(self, ctx: Context) -> None:
         # Paint the background black
@@ -106,5 +129,6 @@ class ParticleEye(Responder):
             particle.move(delta_ms)
 
 
-st3m.run.run_responder(ParticleEye())
+if __name__ == '__main__':  # debugging purposes
+    st3m.run.run_responder(ParticleEye())
 
