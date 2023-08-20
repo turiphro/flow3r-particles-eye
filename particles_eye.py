@@ -14,7 +14,7 @@ CIRCLE_RING_R = 90
 CIRCLE_RING_WIDTH = 6
 TOUCH_DISTANCE = SCREEN_SIZE[0] / 2
 
-PARTICLE_SIZE = 2
+PARTICLE_SIZE = 4
 NUM_PARTICLES_INNER = 50
 NUM_PARTICLES_OUTER = 150
 DAMPING = 0.8
@@ -126,7 +126,7 @@ class Particle:
 
 
 
-class ParticleEye(Application):
+class ParticlesEye(Application):
     def __init__(self, app_ctx: ApplicationContext) -> None:
         super().__init__(app_ctx)
 
@@ -161,6 +161,7 @@ class ParticleEye(Application):
             particle.move(delta_ms, additional_forces)
 
 
-if __name__ == '__main__':  # debugging purposes
-    st3m.run.run_view(ParticleEye(ApplicationContext()))
+# development purposes (mpremote run)
+if __name__ == '__main__':
+    st3m.run.run_view(ParticlesEye(ApplicationContext()))
 
