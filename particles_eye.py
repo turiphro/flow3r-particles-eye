@@ -94,13 +94,18 @@ def force_to_mass(mass: Vector):
     return force_fn
 
 
+def colour_blend(colour1: list, colour2: list, alpha: float) -> list:
+    return [alpha * c1 + (1 - alpha) * c2 for c1, c2 in zip(colour1, colour2)]
+
+
 class Particle:
     def __init__(self, force_fn):
         self.position = Vector(
             float(random.randint(TOPLEFT[0], TOPLEFT[0] + SCREEN_SIZE[0])),
             float(random.randint(TOPLEFT[1], TOPLEFT[0] + SCREEN_SIZE[1]))
         )
-        self.colour = [255, 0, 0]
+        self.colour = [1.0, 0.0, 0.0]
+        self.colourTarget = None
         self.entropy = ENTROPY_BASE
         self.speed = Vector(0, 0)
         self.force_fn = force_fn
@@ -123,6 +128,11 @@ class Particle:
         self.speed = self.speed * DAMPING + (force + self.entropy * wiggle) * (1 - DAMPING)
 
         self.position += self.speed
+
+        if self.colourTarget:
+            self.colour = colour_blend(self.colour, self.colourTarget, DAMPING)
+            if sum(c1 - c2 for c1, c2 in zip(self.colour, self.colourTarget)) < 3:
+                self.colourTarget = None
 
 
 
@@ -156,8 +166,14 @@ class ParticlesEye(Application):
                     TOUCH_DISTANCE * math.sin(angle),
                 )))
 
+        colourTarget = None
+        if self.input.buttons.app.left.pressed or self.input.buttons.app.left.repeated \
+                or self.input.buttons.app.right.pressed or self.input.buttons.app.right.repeated:
+            colourTarget = [random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1)]
+
         for particle in self.particles:
             particle.entropy = ENTROPY_TOUCH if additional_forces else ENTROPY_BASE
+            particle.colourTarget = colourTarget
             particle.move(delta_ms, additional_forces)
 
 
